@@ -31,8 +31,26 @@ use tokio::sync::{Mutex, RwLock};
 
 use std::collections::HashMap;
 
+use crate::wrapper::DbPoolConnection;
+
+pub struct DbPoolManager {
+    pub pool: DbPool,
+    pub next_connection_id: i64,
+    pub connections: HashMap<i64, DbPoolConnection>,
+}
+
+impl DbPoolManager {
+    pub fn new(pool: DbPool) -> DbPoolManager {
+        DbPoolManager {
+            pool,
+            next_connection_id: 0,
+            connections: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Default)]
-pub struct DbInstances(pub RwLock<HashMap<String, DbPool>>);
+pub struct DbInstances(pub RwLock<HashMap<String, DbPoolManager>>);
 
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -138,6 +156,8 @@ impl Builder {
         PluginBuilder::<R, Option<PluginConfig>>::new("sql")
             .invoke_handler(tauri::generate_handler![
                 commands::load,
+                commands::acquire,
+                commands::release,
                 commands::execute,
                 commands::select,
                 commands::close
@@ -159,7 +179,7 @@ impl Builder {
                             pool.migrate(&migrator).await?;
                         }
 
-                        lock.insert(db, pool);
+                        lock.insert(db, DbPoolManager::new(pool));
                     }
                     drop(lock);
 
@@ -175,9 +195,10 @@ impl Builder {
                 if let RunEvent::Exit = event {
                     run_async_command(async move {
                         let instances = &*app.state::<DbInstances>();
-                        let instances = instances.0.read().await;
-                        for value in instances.values() {
-                            value.close().await;
+                        let mut instances = instances.0.write().await;
+                        for value in instances.values_mut() {
+                            value.connections.clear();
+                            value.pool.close().await;
                         }
                     });
                 }

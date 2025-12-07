@@ -7,6 +7,7 @@ use std::fs::create_dir_all;
 
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
+use sqlx::Executor;
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
 use sqlx::{migrate::MigrateDatabase, Column, Executor, Pool, Row};
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
@@ -18,7 +19,7 @@ use sqlx::MySql;
 #[cfg(feature = "postgres")]
 use sqlx::Postgres;
 #[cfg(feature = "sqlite")]
-use sqlx::Sqlite;
+use sqlx::{Executor, Sqlite};
 
 use crate::LastInsertId;
 
@@ -143,6 +144,41 @@ impl DbPool {
         }
     }
 
+    pub(crate) async fn acquire(&self) -> Result<DbPoolConnection, crate::Error> {
+        Ok(match self {
+            #[cfg(feature = "sqlite")]
+            DbPool::Sqlite(pool) => {
+                let connection = pool.acquire().await?;
+                DbPoolConnection::Sqlite(connection)
+            }
+            #[cfg(feature = "mysql")]
+            DbPool::Mysql(pool) => {
+                let connection = pool.acquire().await?;
+                DbPoolConnection::Mysql(connection)
+            }
+            #[cfg(feature = "postgres")]
+            DbPool::Postgres(pool) => {
+                let connection = pool.acquire().await?;
+                DbPoolConnection::Postgres(connection)
+            }
+            #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
+            DbPool::None => DbPoolConnection::None,
+        })
+    }
+}
+
+pub enum DbPoolConnection {
+    #[cfg(feature = "sqlite")]
+    Sqlite(PoolConnection<Sqlite>),
+    #[cfg(feature = "mysql")]
+    MySql(PoolConnection<MySql>),
+    #[cfg(feature = "postgres")]
+    Postgres(PoolConnection<Postgres>),
+    #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
+    None,
+}
+
+impl DbPoolConnection {
     pub(crate) async fn execute(
         &self,
         _query: String,
@@ -150,7 +186,7 @@ impl DbPool {
     ) -> Result<(u64, LastInsertId), crate::Error> {
         Ok(match self {
             #[cfg(feature = "sqlite")]
-            DbPool::Sqlite(pool) => {
+            DbPoolConnection::Sqlite(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -170,7 +206,7 @@ impl DbPool {
                 )
             }
             #[cfg(feature = "mysql")]
-            DbPool::MySql(pool) => {
+            DbPoolConnection::MySql(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -190,7 +226,7 @@ impl DbPool {
                 )
             }
             #[cfg(feature = "postgres")]
-            DbPool::Postgres(pool) => {
+            DbPoolConnection::Postgres(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -207,7 +243,7 @@ impl DbPool {
                 (result.rows_affected(), LastInsertId::Postgres(()))
             }
             #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
-            DbPool::None => (0, LastInsertId::None),
+            DbPoolConnection::None => (0, LastInsertId::None),
         })
     }
 
@@ -218,7 +254,7 @@ impl DbPool {
     ) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
         Ok(match self {
             #[cfg(feature = "sqlite")]
-            DbPool::Sqlite(pool) => {
+            DbPoolConnection::Sqlite(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -248,7 +284,7 @@ impl DbPool {
                 values
             }
             #[cfg(feature = "mysql")]
-            DbPool::MySql(pool) => {
+            DbPoolConnection::MySql(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -278,7 +314,7 @@ impl DbPool {
                 values
             }
             #[cfg(feature = "postgres")]
-            DbPool::Postgres(pool) => {
+            DbPoolConnection::Postgres(pool) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -308,7 +344,7 @@ impl DbPool {
                 values
             }
             #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
-            DbPool::None => Vec::new(),
+            DbPoolConnection::None => Vec::new(),
         })
     }
 }

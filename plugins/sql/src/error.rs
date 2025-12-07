@@ -12,6 +12,8 @@ pub enum Error {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("invalid connection url: {0}")]
     InvalidDbUrl(String),
+    #[error("no such pool connection for {0}: {1}")]
+    NoSuchPoolConnection(String, i64),
     #[error("database {0} not loaded")]
     DatabaseNotLoaded(String),
     #[error("unsupported datatype: {0}")]
