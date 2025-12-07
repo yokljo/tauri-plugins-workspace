@@ -104,6 +104,30 @@ const result = await db.execute(
 )
 ```
 
+## Persistent Connections
+
+Some operations like transactions require a persistent database connection to be maintained.
+The `acquire` method returns a `DatabaseConnection` object which *must* be released once you have
+finished using it or the database connection pool will run out of connections to hand out and it
+will freeze.
+
+Example of how to make a transaction in JavaScript:
+
+```javascript
+const conn = await db.acquire()
+try {
+  await conn.execute(`begin transaction`)
+  // Make changes.
+  await conn.execute(`commit`)
+} catch (err) {
+  await conn.execute(`rollback`)
+  throw err
+} finally {
+  // Releasing the connection in a finally block guarantees that it will be released no matter what.
+  await conn.release()
+}
+```
+
 ## Migrations
 
 This plugin supports database migrations, allowing you to manage database schema evolution over time.

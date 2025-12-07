@@ -54,7 +54,8 @@ export class DatabaseConnection {
         connection_id: this.id,
       }
     )
-    this.released = false
+    
+    this.released = true
   }
 
   /**
@@ -90,7 +91,7 @@ export class DatabaseConnection {
    *       [ todos.title, todos.status, todos.id ]
    *    );
    * } finally {
-   *    conn.release();
+   *    await conn.release();
    * }
    * ```
    */
@@ -119,7 +120,7 @@ export class DatabaseConnection {
    *
    * @example
    * ```ts
-   * const conn = db.acquire();
+   * const conn = await db.acquire();
    * try {
    *    // for sqlite & postgres
    *    const result = await db.select(
@@ -131,7 +132,7 @@ export class DatabaseConnection {
    *       "SELECT * from todos WHERE id = ?", [ id ]
    *    );
    * } finally {
-   *    conn.release();
+   *    await conn.release();
    * }
    * ```
    */
