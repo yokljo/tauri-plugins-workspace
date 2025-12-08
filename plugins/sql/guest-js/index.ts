@@ -27,7 +27,16 @@ export interface QueryResult {
  * You *must* call `release()` to return the connection to the pool, otherwise you will run out of
  * connections and the database will freeze.
  */
-export class DatabaseConnection {
+export interface DatabaseConnection {
+  release(): Promise<void>
+
+  execute(query: string, bindValues?: unknown[]): Promise<QueryResult>
+
+  select<T>(query: string, bindValues?: unknown[]): Promise<T>
+}
+
+/** This is the actual implementation of `DatabaseConnection`. It is not exported so the user must go through a `Database` instance to create a connection. */
+class DatabaseConnectionInstance {
   path: string
   id: number
   released: boolean = false
@@ -220,7 +229,7 @@ export default class Database {
         db: this.path,
       }
     )
-    return new DatabaseConnection(this.path, connectionId)
+    return new DatabaseConnectionInstance(this.path, connectionId)
   }
 
   /**
@@ -258,7 +267,7 @@ export default class Database {
   async execute(query: string, bindValues?: unknown[]): Promise<QueryResult> {
     let conn = await this.acquire()
     try {
-      return await conn.execute(query)
+      return await conn.execute(query, bindValues)
     } finally {
       await conn.release()
     }
