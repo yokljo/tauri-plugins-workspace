@@ -28,6 +28,32 @@ Also allows to load or close a connection.
 <tr>
 <td>
 
+`sql:allow-acquire`
+
+</td>
+<td>
+
+Enables the acquire command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sql:deny-acquire`
+
+</td>
+<td>
+
+Denies the acquire command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `sql:allow-close`
 
 </td>
@@ -99,6 +125,32 @@ Enables the load command without any pre-configured scope.
 <td>
 
 Denies the load command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sql:allow-release`
+
+</td>
+<td>
+
+Enables the release command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sql:deny-release`
+
+</td>
+<td>
+
+Denies the release command without any pre-configured scope.
 
 </td>
 </tr>

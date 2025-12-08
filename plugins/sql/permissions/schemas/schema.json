@@ -295,6 +295,18 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the acquire command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-acquire",
+          "markdownDescription": "Enables the acquire command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the acquire command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-acquire",
+          "markdownDescription": "Denies the acquire command without any pre-configured scope."
+        },
+        {
           "description": "Enables the close command without any pre-configured scope.",
           "type": "string",
           "const": "allow-close",
@@ -329,6 +341,18 @@
           "type": "string",
           "const": "deny-load",
           "markdownDescription": "Denies the load command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the release command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-release",
+          "markdownDescription": "Enables the release command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the release command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-release",
+          "markdownDescription": "Denies the release command without any pre-configured scope."
         },
         {
           "description": "Enables the select command without any pre-configured scope.",

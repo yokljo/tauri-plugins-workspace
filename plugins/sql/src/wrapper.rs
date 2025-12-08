@@ -7,7 +7,6 @@ use std::fs::create_dir_all;
 
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
-use sqlx::Executor;
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
 use sqlx::{migrate::MigrateDatabase, Column, Executor, Pool, Row};
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
@@ -19,7 +18,7 @@ use sqlx::MySql;
 #[cfg(feature = "postgres")]
 use sqlx::Postgres;
 #[cfg(feature = "sqlite")]
-use sqlx::{Executor, Sqlite};
+use sqlx::Sqlite;
 
 use crate::LastInsertId;
 
