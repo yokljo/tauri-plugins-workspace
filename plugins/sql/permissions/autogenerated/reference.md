@@ -12,8 +12,10 @@ Also allows to load or close a connection.
 
 #### This default permission set includes the following:
 
+- `allow-acquire`
 - `allow-close`
 - `allow-load`
+- `allow-release`
 - `allow-select`
 
 ## Permission Table
