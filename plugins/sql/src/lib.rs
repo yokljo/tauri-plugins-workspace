@@ -29,28 +29,52 @@ use tauri::{
 };
 use tokio::sync::{Mutex, RwLock};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::wrapper::DbPoolConnection;
 
-pub struct DbPoolManager {
-    pub pool: DbPool,
-    pub next_connection_id: i64,
-    pub connections: HashMap<i64, DbPoolConnection>,
+pub struct DbInstance {
+    path: String,
+    pool: DbPool,
+    next_connection_id: i64,
+    connections: HashMap<i64, Arc<Mutex<DbPoolConnection>>>,
 }
 
-impl DbPoolManager {
-    pub fn new(pool: DbPool) -> DbPoolManager {
-        DbPoolManager {
+impl DbInstance {
+    pub fn new(path: String, pool: DbPool) -> DbInstance {
+        DbInstance {
+            path,
             pool,
             next_connection_id: 0,
             connections: HashMap::new(),
         }
     }
+
+    async fn close(&mut self) {
+        self.connections.clear();
+        self.pool.close().await;
+    }
+
+    async fn acquire(&mut self) -> Result<i64, crate::Error> {
+        let connection = self.pool.acquire().await?;
+    
+        let connection_id = self.next_connection_id;
+        self.next_connection_id += 1;
+        self.connections.insert(connection_id, Arc::new(Mutex::new(connection)));
+
+        Ok(connection_id)
+    }
+
+    fn get_connection(&self, connection_id: i64) -> Result<Arc<Mutex<DbPoolConnection>>, crate::Error> {
+        let conn = self.connections.get(&connection_id)
+            .ok_or_else(|| crate::Error::NoSuchPoolConnection(self.path.clone(), connection_id))?;
+
+        Ok(conn.clone())
+    }
 }
 
 #[derive(Default)]
-pub struct DbInstances(pub RwLock<HashMap<String, DbPoolManager>>);
+pub struct DbInstances(pub RwLock<HashMap<String, DbInstance>>);
 
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -167,21 +191,22 @@ impl Builder {
 
                 run_async_command(async move {
                     let instances = DbInstances::default();
-                    let mut lock = instances.0.write().await;
+                    {
+                        let mut lock = instances.0.write().await;
 
-                    for db in config.preload {
-                        let pool = DbPool::connect(&db, app).await?;
+                        for db in config.preload {
+                            let pool = DbPool::connect(&db, app).await?;
 
-                        if let Some(migrations) =
-                            self.migrations.as_mut().and_then(|mm| mm.remove(&db))
-                        {
-                            let migrator = Migrator::new(migrations).await?;
-                            pool.migrate(&migrator).await?;
+                            if let Some(migrations) =
+                                self.migrations.as_mut().and_then(|mm| mm.remove(&db))
+                            {
+                                let migrator = Migrator::new(migrations).await?;
+                                pool.migrate(&migrator).await?;
+                            }
+
+                            lock.insert(db.clone(), DbInstance::new(db, pool));
                         }
-
-                        lock.insert(db, DbPoolManager::new(pool));
                     }
-                    drop(lock);
 
                     app.manage(instances);
                     app.manage(Migrations(Mutex::new(
@@ -197,8 +222,7 @@ impl Builder {
                         let instances = &*app.state::<DbInstances>();
                         let mut instances = instances.0.write().await;
                         for value in instances.values_mut() {
-                            value.connections.clear();
-                            value.pool.close().await;
+                            value.close().await;
                         }
                     });
                 }

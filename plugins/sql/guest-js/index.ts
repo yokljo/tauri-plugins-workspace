@@ -256,17 +256,11 @@ export default class Database {
    * ```
    */
   async execute(query: string, bindValues?: unknown[]): Promise<QueryResult> {
-    const [rowsAffected, lastInsertId] = await invoke<[number, number]>(
-      'plugin:sql|execute',
-      {
-        db: this.path,
-        query,
-        values: bindValues ?? []
-      }
-    )
-    return {
-      lastInsertId,
-      rowsAffected
+    let conn = await this.acquire()
+    try {
+      return await conn.execute(query)
+    } finally {
+      await conn.release()
     }
   }
 
@@ -289,13 +283,12 @@ export default class Database {
    * ```
    */
   async select<T>(query: string, bindValues?: unknown[]): Promise<T> {
-    const result = await invoke<T>('plugin:sql|select', {
-      db: this.path,
-      query,
-      values: bindValues ?? []
-    })
-
-    return result
+    let conn = await this.acquire()
+    try {
+      return await conn.select(query, bindValues)
+    } finally {
+      await conn.release()
+    }
   }
 
   /**

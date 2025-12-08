@@ -8,7 +8,7 @@ use std::fs::create_dir_all;
 use indexmap::IndexMap;
 use serde_json::Value as JsonValue;
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
-use sqlx::{migrate::MigrateDatabase, Column, Executor, Pool, Row};
+use sqlx::{migrate::MigrateDatabase, pool::PoolConnection, Column, Executor, Pool, Row};
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "postgres"))]
 use tauri::Manager;
 use tauri::{AppHandle, Runtime};
@@ -32,36 +32,6 @@ pub enum DbPool {
     #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
     None,
 }
-
-// public methods
-/* impl DbPool {
-    /// Get the inner Sqlite Pool. Returns None for MySql and Postgres pools.
-    #[cfg(feature = "sqlite")]
-    pub fn sqlite(&self) -> Option<&Pool<Sqlite>> {
-        match self {
-            DbPool::Sqlite(pool) => Some(pool),
-            _ => None,
-        }
-    }
-
-    /// Get the inner MySql Pool. Returns None for Sqlite and Postgres pools.
-    #[cfg(feature = "mysql")]
-    pub fn mysql(&self) -> Option<&Pool<MySql>> {
-        match self {
-            DbPool::MySql(pool) => Some(pool),
-            _ => None,
-        }
-    }
-
-    /// Get the inner Postgres Pool. Returns None for MySql and Sqlite pools.
-    #[cfg(feature = "postgres")]
-    pub fn postgres(&self) -> Option<&Pool<Postgres>> {
-        match self {
-            DbPool::Postgres(pool) => Some(pool),
-            _ => None,
-        }
-    }
-} */
 
 // private methods
 impl DbPool {
@@ -143,6 +113,7 @@ impl DbPool {
         }
     }
 
+    /// The connection returned by acquire is returned to the pool when conn is dropped.
     pub(crate) async fn acquire(&self) -> Result<DbPoolConnection, crate::Error> {
         Ok(match self {
             #[cfg(feature = "sqlite")]
@@ -151,9 +122,9 @@ impl DbPool {
                 DbPoolConnection::Sqlite(connection)
             }
             #[cfg(feature = "mysql")]
-            DbPool::Mysql(pool) => {
+            DbPool::MySql(pool) => {
                 let connection = pool.acquire().await?;
-                DbPoolConnection::Mysql(connection)
+                DbPoolConnection::MySql(connection)
             }
             #[cfg(feature = "postgres")]
             DbPool::Postgres(pool) => {
@@ -179,13 +150,13 @@ pub enum DbPoolConnection {
 
 impl DbPoolConnection {
     pub(crate) async fn execute(
-        &self,
+        &mut self,
         _query: String,
         _values: Vec<JsonValue>,
     ) -> Result<(u64, LastInsertId), crate::Error> {
         Ok(match self {
             #[cfg(feature = "sqlite")]
-            DbPoolConnection::Sqlite(pool) => {
+            DbPoolConnection::Sqlite(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -198,14 +169,14 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let result = pool.execute(query).await?;
+                let result = conn.execute(query).await?;
                 (
                     result.rows_affected(),
                     LastInsertId::Sqlite(result.last_insert_rowid()),
                 )
             }
             #[cfg(feature = "mysql")]
-            DbPoolConnection::MySql(pool) => {
+            DbPoolConnection::MySql(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -218,14 +189,14 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let result = pool.execute(query).await?;
+                let result = conn.execute(query).await?;
                 (
                     result.rows_affected(),
                     LastInsertId::MySql(result.last_insert_id()),
                 )
             }
             #[cfg(feature = "postgres")]
-            DbPoolConnection::Postgres(pool) => {
+            DbPoolConnection::Postgres(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -238,7 +209,7 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let result = pool.execute(query).await?;
+                let result = conn.execute(query).await?;
                 (result.rows_affected(), LastInsertId::Postgres(()))
             }
             #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres")))]
@@ -247,13 +218,13 @@ impl DbPoolConnection {
     }
 
     pub(crate) async fn select(
-        &self,
+        &mut self,
         _query: String,
         _values: Vec<JsonValue>,
     ) -> Result<Vec<IndexMap<String, JsonValue>>, crate::Error> {
         Ok(match self {
             #[cfg(feature = "sqlite")]
-            DbPoolConnection::Sqlite(pool) => {
+            DbPoolConnection::Sqlite(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -266,7 +237,7 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let rows = pool.fetch_all(query).await?;
+                let rows = conn.fetch_all(query).await?;
                 let mut values = Vec::new();
                 for row in rows {
                     let mut value = IndexMap::default();
@@ -283,7 +254,7 @@ impl DbPoolConnection {
                 values
             }
             #[cfg(feature = "mysql")]
-            DbPoolConnection::MySql(pool) => {
+            DbPoolConnection::MySql(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -296,7 +267,7 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let rows = pool.fetch_all(query).await?;
+                let rows = conn.fetch_all(query).await?;
                 let mut values = Vec::new();
                 for row in rows {
                     let mut value = IndexMap::default();
@@ -313,7 +284,7 @@ impl DbPoolConnection {
                 values
             }
             #[cfg(feature = "postgres")]
-            DbPoolConnection::Postgres(pool) => {
+            DbPoolConnection::Postgres(conn) => {
                 let mut query = sqlx::query(&_query);
                 for value in _values {
                     if value.is_null() {
@@ -326,7 +297,7 @@ impl DbPoolConnection {
                         query = query.bind(value);
                     }
                 }
-                let rows = pool.fetch_all(query).await?;
+                let rows = conn.fetch_all(query).await?;
                 let mut values = Vec::new();
                 for row in rows {
                     let mut value = IndexMap::default();
