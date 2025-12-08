@@ -56,11 +56,11 @@ class DatabaseConnectionInstance {
   async release() {
     this.checkRelease()
 
-    await invoke<[number]>(
+    await invoke<void>(
       'plugin:sql|release',
       {
         db: this.path,
-        connection_id: this.id,
+        connectionId: this.id,
       }
     )
     
@@ -111,7 +111,7 @@ class DatabaseConnectionInstance {
       'plugin:sql|execute',
       {
         db: this.path,
-        connection_id: this.id,
+        connectionId: this.id,
         query,
         values: bindValues ?? []
       }
@@ -150,7 +150,7 @@ class DatabaseConnectionInstance {
 
     const result = await invoke<T>('plugin:sql|select', {
       db: this.path,
-      connection_id: this.id,
+      connectionId: this.id,
       query,
       values: bindValues ?? []
     })
@@ -223,7 +223,7 @@ export default class Database {
    * pool, otherwise you will run out of connections and the database will freeze.
    */
   async acquire(): Promise<DatabaseConnection> {
-    const [connectionId] = await invoke<[number]>(
+    const connectionId = await invoke<number>(
       'plugin:sql|acquire',
       {
         db: this.path,
