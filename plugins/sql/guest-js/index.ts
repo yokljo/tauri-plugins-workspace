@@ -265,7 +265,7 @@ export default class Database {
    * ```
    */
   async execute(query: string, bindValues?: unknown[]): Promise<QueryResult> {
-    let conn = await this.acquire()
+    const conn = await this.acquire()
     try {
       return await conn.execute(query, bindValues)
     } finally {
@@ -292,7 +292,7 @@ export default class Database {
    * ```
    */
   async select<T>(query: string, bindValues?: unknown[]): Promise<T> {
-    let conn = await this.acquire()
+    const conn = await this.acquire()
     try {
       return await conn.select(query, bindValues)
     } finally {
